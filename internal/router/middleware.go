@@ -78,8 +78,8 @@ func resolveAllowedOrigin(origin string, allowedOrigins []string, allowCredentia
 	}
 	for _, allowed := range allowedOrigins {
 		if allowed == "*" {
-			if allowCredentials && origin != "" {
-				return origin
+			if allowCredentials {
+				return ""
 			}
 			return "*"
 		}

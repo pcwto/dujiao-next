@@ -36,11 +36,13 @@ func main() {
 	stdLog := logger.StdLogger()
 
 	if cfg.Server.Mode == "release" {
-		if isWeakSecret(cfg.JWT.SecretKey) {
-			stdLog.Fatalf("JWT secret 过弱或仍为默认值，请在生产环境中配置强随机密钥")
+		if err := validateProductionSecrets(cfg); err != nil {
+			stdLog.Fatalf("生产密钥配置不安全: %v", err)
 		}
-	} else if isWeakSecret(cfg.JWT.SecretKey) {
-		stdLog.Printf("警告: JWT secret 过弱或仍为默认值，建议在生产环境中更换")
+	} else {
+		for _, name := range weakSecretNames(cfg) {
+			stdLog.Printf("警告: %s 过弱或仍为默认值，建议在生产环境中更换", name)
+		}
 	}
 
 	// fullstack 模式下打印内嵌 SPA 信息
@@ -134,6 +136,47 @@ func isWeakSecret(secret string) bool {
 		return true
 	}
 	return false
+}
+
+func validateProductionSecrets(cfg *config.Config) error {
+	weak := weakSecretNames(cfg)
+	if len(weak) > 0 {
+		return fmt.Errorf("%s 过弱或仍为默认值", strings.Join(weak, ", "))
+	}
+	values := map[string]string{
+		"jwt.secret":      strings.TrimSpace(cfg.JWT.SecretKey),
+		"user_jwt.secret": strings.TrimSpace(cfg.UserJWT.SecretKey),
+		"app.secret_key":  strings.TrimSpace(cfg.App.SecretKey),
+	}
+	seen := map[string]string{}
+	for name, value := range values {
+		if previous, ok := seen[value]; ok {
+			return fmt.Errorf("%s 与 %s 不能相同", name, previous)
+		}
+		seen[value] = name
+	}
+	return nil
+}
+
+func weakSecretNames(cfg *config.Config) []string {
+	if cfg == nil {
+		return []string{"jwt.secret", "user_jwt.secret", "app.secret_key"}
+	}
+	secrets := []struct {
+		name  string
+		value string
+	}{
+		{name: "jwt.secret", value: cfg.JWT.SecretKey},
+		{name: "user_jwt.secret", value: cfg.UserJWT.SecretKey},
+		{name: "app.secret_key", value: cfg.App.SecretKey},
+	}
+	var weak []string
+	for _, secret := range secrets {
+		if isWeakSecret(strings.TrimSpace(secret.value)) {
+			weak = append(weak, secret.name)
+		}
+	}
+	return weak
 }
 
 // resolveDefaultAdminCredentials 解析默认管理员初始化凭据（环境变量优先，其次 config.yml）

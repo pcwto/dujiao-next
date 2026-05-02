@@ -342,7 +342,7 @@ func Load() *Config {
 	viper.SetDefault("cors.allowed_origins", DefaultCORSAllowedOrigins())
 	viper.SetDefault("cors.allowed_methods", DefaultCORSAllowedMethods())
 	viper.SetDefault("cors.allowed_headers", DefaultCORSAllowedHeaders())
-	viper.SetDefault("cors.allow_credentials", true)
+	viper.SetDefault("cors.allow_credentials", false)
 	viper.SetDefault("cors.max_age", 600)
 	viper.SetDefault("security.login_rate_limit.window_seconds", 300)
 	viper.SetDefault("security.login_rate_limit.max_attempts", 5)

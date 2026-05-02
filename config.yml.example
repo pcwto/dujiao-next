@@ -74,14 +74,12 @@ upload:
     - image/png
     - image/gif
     - image/webp
-    - image/svg+xml
   allowed_extensions:
     - .jpg
     - .jpeg
     - .png
     - .gif
     - .webp
-    - .svg
   max_width: 4096
   max_height: 4096
 
@@ -103,7 +101,7 @@ cors:
     - Cache-Control
     - X-Requested-With
     - X-CSRF-Token
-  allow_credentials: true
+  allow_credentials: false
   max_age: 600
 
 security:

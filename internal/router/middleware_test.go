@@ -17,8 +17,8 @@ func TestResolveAllowedOrigin(t *testing.T) {
 	}
 
 	got = resolveAllowedOrigin("https://example.com", []string{"*"}, true)
-	if got != "https://example.com" {
-		t.Fatalf("wildcard with credentials should echo origin, got %s", got)
+	if got != "" {
+		t.Fatalf("wildcard with credentials should require an explicit allow-list, got %s", got)
 	}
 
 	got = resolveAllowedOrigin("https://a.example.com", []string{"https://a.example.com", "https://b.example.com"}, false)

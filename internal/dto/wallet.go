@@ -67,6 +67,34 @@ type WalletRechargeResp struct {
 	CreatedAt     time.Time    `json:"created_at"`
 }
 
+// WalletRechargePaymentRechargeResp is the public recharge summary embedded in
+// payment creation responses. It intentionally omits fee and internal fields.
+type WalletRechargePaymentRechargeResp struct {
+	ID            uint         `json:"id"`
+	RechargeNo    string       `json:"recharge_no"`
+	Amount        models.Money `json:"amount"`
+	PayableAmount models.Money `json:"payable_amount"`
+	Currency      string       `json:"currency"`
+	Status        string       `json:"status"`
+	Remark        string       `json:"remark"`
+	PaidAt        *time.Time   `json:"paid_at"`
+	CreatedAt     time.Time    `json:"created_at"`
+}
+
+func NewWalletRechargePaymentRechargeResp(r *models.WalletRechargeOrder) WalletRechargePaymentRechargeResp {
+	return WalletRechargePaymentRechargeResp{
+		ID:            r.ID,
+		RechargeNo:    r.RechargeNo,
+		Amount:        r.Amount,
+		PayableAmount: r.PayableAmount,
+		Currency:      r.Currency,
+		Status:        r.Status,
+		Remark:        r.Remark,
+		PaidAt:        r.PaidAt,
+		CreatedAt:     r.CreatedAt,
+	}
+}
+
 // NewWalletRechargeResp 从 models.WalletRechargeOrder 构造响应
 func NewWalletRechargeResp(r *models.WalletRechargeOrder) WalletRechargeResp {
 	return WalletRechargeResp{
@@ -96,25 +124,25 @@ func NewWalletRechargeRespList(orders []models.WalletRechargeOrder) []WalletRech
 
 // WalletRechargePaymentPayload 钱包充值支付响应载荷
 type WalletRechargePaymentPayload struct {
-	Recharge        *WalletRechargeResp `json:"recharge,omitempty"`
-	RechargeNo      string              `json:"recharge_no,omitempty"`
-	RechargeStatus  string              `json:"recharge_status,omitempty"`
-	Account         *WalletAccountResp  `json:"account,omitempty"`
-	PaymentID       *uint               `json:"payment_id,omitempty"`
-	ProviderType    string              `json:"provider_type,omitempty"`
-	ChannelType     string              `json:"channel_type,omitempty"`
-	InteractionMode string              `json:"interaction_mode,omitempty"`
-	PayURL          string              `json:"pay_url,omitempty"`
-	QRCode          string              `json:"qr_code,omitempty"`
-	ExpiresAt       *time.Time          `json:"expires_at,omitempty"`
-	Status          string              `json:"status,omitempty"`
+	Recharge        *WalletRechargePaymentRechargeResp `json:"recharge,omitempty"`
+	RechargeNo      string                             `json:"recharge_no,omitempty"`
+	RechargeStatus  string                             `json:"recharge_status,omitempty"`
+	Account         *WalletAccountResp                 `json:"account,omitempty"`
+	PaymentID       *uint                              `json:"payment_id,omitempty"`
+	ProviderType    string                             `json:"provider_type,omitempty"`
+	ChannelType     string                             `json:"channel_type,omitempty"`
+	InteractionMode string                             `json:"interaction_mode,omitempty"`
+	PayURL          string                             `json:"pay_url,omitempty"`
+	QRCode          string                             `json:"qr_code,omitempty"`
+	ExpiresAt       *time.Time                         `json:"expires_at,omitempty"`
+	Status          string                             `json:"status,omitempty"`
 }
 
 // NewWalletRechargePaymentPayload 构造钱包充值支付响应
 func NewWalletRechargePaymentPayload(recharge *models.WalletRechargeOrder, payment *models.Payment, account *models.WalletAccount) WalletRechargePaymentPayload {
 	p := WalletRechargePaymentPayload{}
 	if recharge != nil {
-		r := NewWalletRechargeResp(recharge)
+		r := NewWalletRechargePaymentRechargeResp(recharge)
 		p.Recharge = &r
 		p.RechargeNo = recharge.RechargeNo
 		p.RechargeStatus = recharge.Status

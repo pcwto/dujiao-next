@@ -176,7 +176,19 @@ func newFileWriteSyncer(options Options) (zapcore.WriteSyncer, error) {
 	} else {
 		writer.Compress = defaultLogCompress
 	}
-	return zapcore.AddSync(writer), nil
+	return &lumberjackWriteSyncer{writer: writer}, nil
+}
+
+type lumberjackWriteSyncer struct {
+	writer *lumberjack.Logger
+}
+
+func (s *lumberjackWriteSyncer) Write(p []byte) (int, error) {
+	return s.writer.Write(p)
+}
+
+func (s *lumberjackWriteSyncer) Sync() error {
+	return s.writer.Close()
 }
 
 func resolveLogFilePath(options Options) (string, error) {
