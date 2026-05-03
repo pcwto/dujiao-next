@@ -23,14 +23,14 @@ jobs:
       - name: Checkout admin (cross-repo)
         uses: actions/checkout@v4
         with:
-          repository: dujiao-next/admin
+          repository: ${{ github.repository_owner }}/admin
           ref: ${{ github.ref_name }}
           path: admin-src
 
       - name: Checkout user (cross-repo)
         uses: actions/checkout@v4
         with:
-          repository: dujiao-next/user
+          repository: ${{ github.repository_owner }}/user
           ref: ${{ github.ref_name }}
           path: user-src
 

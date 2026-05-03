@@ -6,7 +6,7 @@ ARG TARGETOS
 ARG TARGETARCH
 ARG TARGETVARIANT
 ARG APP_VERSION=v1.0.0
-ARG GOPROXY=https://goproxy.cn,direct
+ARG GOPROXY=https://proxy.golang.org|direct
 RUN echo "Building for $TARGETOS/$TARGETARCH$TARGETVARIANT"
 
 WORKDIR /src
@@ -15,10 +15,12 @@ ENV CGO_ENABLED=0
 ENV GOPROXY=${GOPROXY}
 
 COPY go.mod go.sum ./
-RUN go mod download
+RUN --mount=type=cache,target=/go/pkg/mod go mod download
 
 COPY . .
-RUN set -eux; \
+RUN --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build \
+    set -eux; \
     export GOOS="$TARGETOS" GOARCH="$TARGETARCH"; \
     if [ "$TARGETARCH" = "arm" ] && [ -n "$TARGETVARIANT" ]; then export GOARM="${TARGETVARIANT#v}"; fi; \
     if [ "$TARGETARCH" = "amd64" ] && [ -n "$TARGETVARIANT" ]; then export GOAMD64="${TARGETVARIANT#v}"; fi; \
