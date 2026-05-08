@@ -96,11 +96,14 @@ cors:
   allowed_headers:
     - Content-Type
     - Content-Length
+    - Accept
     - Accept-Encoding
     - Authorization
     - Cache-Control
     - X-Requested-With
     - X-CSRF-Token
+    - X-Request-ID
+    - X-Lang
   allow_credentials: false
   max_age: 600
 

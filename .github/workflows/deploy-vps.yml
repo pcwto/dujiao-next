@@ -1,0 +1,166 @@
+name: Deploy VPS API
+
+on:
+  workflow_run:
+    workflows:
+      - Publish Docker Image
+    types:
+      - completed
+    branches:
+      - main
+      - master
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: GHCR image tag to deploy, for example sha-abc1234 or v1.0.0
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: server-vps-deploy
+  cancel-in-progress: false
+
+env:
+  IMAGE_OWNER: ${{ github.repository_owner }}
+  VPS_HOST: ${{ secrets.VPS_HOST }}
+  VPS_PORT: ${{ secrets.VPS_PORT }}
+  VPS_USER: ${{ secrets.VPS_USER }}
+  VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+  VPS_COMPOSE_DIR: ${{ secrets.VPS_COMPOSE_DIR }}
+  PUBLIC_API_HEALTH_URL: ${{ secrets.PUBLIC_API_HEALTH_URL }}
+
+jobs:
+  deploy:
+    name: Deploy API container
+    runs-on: ubuntu-latest
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      github.event.workflow_run.conclusion == 'success'
+
+    steps:
+      - name: Resolve deployment inputs
+        id: deploy
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          missing=()
+          for name in VPS_HOST VPS_USER VPS_SSH_KEY VPS_COMPOSE_DIR PUBLIC_API_HEALTH_URL; do
+            if [ -z "${!name:-}" ]; then
+              missing+=("$name")
+            fi
+          done
+
+          if [ "${#missing[@]}" -gt 0 ]; then
+            printf 'Missing required deployment secrets: %s\n' "${missing[*]}" >&2
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if [ -z "${VPS_PORT:-}" ]; then
+            echo "VPS_PORT=22" >> "$GITHUB_ENV"
+          fi
+
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ -n "${{ inputs.image_tag }}" ]; then
+            image_tag="${{ inputs.image_tag }}"
+          elif [ "${{ github.event_name }}" = "workflow_run" ]; then
+            image_tag="sha-$(printf '%s' '${{ github.event.workflow_run.head_sha }}' | cut -c1-7)"
+          else
+            image_tag="sha-$(printf '%s' '${{ github.sha }}' | cut -c1-7)"
+          fi
+
+          if ! printf '%s' "$image_tag" | grep -Eq '^[A-Za-z0-9._-]+$'; then
+            printf 'Refusing unsafe image tag: %s\n' "$image_tag" >&2
+            exit 1
+          fi
+
+          echo "image_tag=$image_tag" >> "$GITHUB_OUTPUT"
+          echo "ready=true" >> "$GITHUB_OUTPUT"
+
+      - name: Stop when deployment secrets are not configured
+        if: steps.deploy.outputs.ready != 'true'
+        run: |
+          echo "VPS deployment skipped. Configure VPS_HOST, VPS_USER, VPS_SSH_KEY, VPS_COMPOSE_DIR, and PUBLIC_API_HEALTH_URL to enable it."
+
+      - name: Prepare SSH key
+        if: steps.deploy.outputs.ready == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$VPS_SSH_KEY" > ~/.ssh/dujiao-next-vps
+          chmod 600 ~/.ssh/dujiao-next-vps
+          ssh-keyscan -p "$VPS_PORT" -H "$VPS_HOST" >> ~/.ssh/known_hosts
+
+      - name: Deploy on VPS
+        if: steps.deploy.outputs.ready == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          ssh -i ~/.ssh/dujiao-next-vps -p "$VPS_PORT" "$VPS_USER@$VPS_HOST" \
+            "IMAGE_OWNER='$IMAGE_OWNER' IMAGE_TAG='${{ steps.deploy.outputs.image_tag }}' VPS_COMPOSE_DIR='$VPS_COMPOSE_DIR' bash -s" <<'REMOTE'
+          set -euo pipefail
+
+          cd "$VPS_COMPOSE_DIR"
+
+          compose_file=""
+          for candidate in compose/docker-compose.yml docker-compose.yml deploy/docker-compose.ghcr.yml; do
+            if [ -f "$candidate" ]; then
+              compose_file="$candidate"
+              break
+            fi
+          done
+
+          env_file=""
+          for candidate in env/server.env .env.prod deploy/.env.prod; do
+            if [ -f "$candidate" ]; then
+              env_file="$candidate"
+              break
+            fi
+          done
+
+          if [ -z "$compose_file" ]; then
+            echo "No compose file found under $VPS_COMPOSE_DIR" >&2
+            exit 1
+          fi
+          if [ -z "$env_file" ]; then
+            echo "No env file found under $VPS_COMPOSE_DIR" >&2
+            exit 1
+          fi
+
+          update_env() {
+            key="$1"
+            value="$2"
+            file="$3"
+            if grep -q "^${key}=" "$file"; then
+              sed -i "s|^${key}=.*|${key}=${value}|" "$file"
+            else
+              printf '\n%s=%s\n' "$key" "$value" >> "$file"
+            fi
+          }
+
+          update_env IMAGE_OWNER "$IMAGE_OWNER" "$env_file"
+          update_env IMAGE_TAG "$IMAGE_TAG" "$env_file"
+
+          docker compose --env-file "$env_file" -f "$compose_file" config --quiet
+          docker compose --env-file "$env_file" -f "$compose_file" pull server
+          docker compose --env-file "$env_file" -f "$compose_file" up -d server
+          docker compose --env-file "$env_file" -f "$compose_file" ps server
+          REMOTE
+
+      - name: Verify public health endpoint
+        if: steps.deploy.outputs.ready == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          for attempt in 1 2 3 4 5 6 7 8 9 10; do
+            if curl -fsS "$PUBLIC_API_HEALTH_URL"; then
+              exit 0
+            fi
+            sleep 6
+          done
+          echo "Public health check failed: $PUBLIC_API_HEALTH_URL" >&2
+          exit 1

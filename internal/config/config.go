@@ -215,11 +215,14 @@ var (
 	defaultCORSAllowedHeaders = []string{
 		"Content-Type",
 		"Content-Length",
+		"Accept",
 		"Accept-Encoding",
 		"Authorization",
 		"Cache-Control",
 		"X-Requested-With",
 		"X-CSRF-Token",
+		"X-Request-ID",
+		"X-Lang",
 	}
 )
 
